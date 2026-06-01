@@ -44,6 +44,9 @@ struct PlayAppView: View {
                 Button("playapp.showInFinder", systemImage: "finder", action: {
                     viewModel.app.showInFinder()
                 })
+                Button("playapp.copyAppPath", systemImage: "doc.on.doc", action: {
+                    viewModel.app.url.path.copyToClipBoard()
+                })
                 Divider()
                 Group {
                     Button("playapp.keymap", systemImage: "keyboard", action: {

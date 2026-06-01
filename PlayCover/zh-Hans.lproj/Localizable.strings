@@ -75,6 +75,7 @@
 
 /* (No Comment) */
 "playapp.clearCache" = "清除应用数据";
+"playapp.copyAppPath" = "复制应用路径";
 
 /* (No Comment) */
 "playapp.clearPreferences" = "清除应用偏好设置";
@@ -218,6 +219,7 @@
 "settings.info.bundleIdentifier" = "Bundle ID：";
 "settings.info.executableName" = "可执行文件名称:";
 "settings.info.minimumOSVersion" = "最低OS版本:";
+"settings.info.appPath" = "应用路径:";
 "settings.info.url" = "链接：";
 "settings.resetSettings" = "重置设定";
 "settings.resetKm" = "重置键盘映射";

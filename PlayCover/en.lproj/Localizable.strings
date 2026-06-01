@@ -3,6 +3,7 @@
 "playapp.settings" = "Settings";
 "playapp.keymap" = "View Keymaps";
 "playapp.showInFinder" = "Show in Finder";
+"playapp.copyAppPath" = "Copy App Path";
 "playapp.openCache" = "Open App Data";
 "playapp.clearCache" = "Clear App Data";
 "playapp.clearPlayChain" = "Clear PlayChain Data";
@@ -214,6 +215,7 @@
 "settings.info.executableName" = "Executable name:";
 "settings.info.minimumOSVersion" = "Minimum OS version:";
 "settings.info.playTools" = "PlayTools installed:";
+"settings.info.appPath" = "App path:";
 "settings.info.url" = "URL:";
 "settings.info.alias" = "Alias:";
 
@@ -334,4 +336,3 @@
 "alert.start.anyway" = "Start Anyway";
 "alert.version.title" = "New Version Available";
 "alert.version.text" = "A new version for %@ is available. Do you want to download it?";
-

@@ -813,6 +813,10 @@ struct InfoView: View {
     @State var info: AppInfo
     @State var hasPlayTools: Bool
 
+    private var appPath: String {
+        info.url.deletingLastPathComponent().path
+    }
+
     var body: some View {
         List {
             HStack {
@@ -856,6 +860,13 @@ struct InfoView: View {
                 Text(hasPlayTools ? "button.Yes" : "button.No")
             }
             HStack {
+                Text("settings.info.appPath")
+                Spacer()
+                Text(appPath)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            HStack {
                 Text("settings.info.url")
                 Spacer()
                 Text("\(info.url.relativePath)")
@@ -867,6 +878,7 @@ struct InfoView: View {
             }
         }
         .listStyle(.bordered(alternatesRowBackgrounds: true))
+        .textSelection(.enabled)
         .padding()
     }
 }
