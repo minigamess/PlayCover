@@ -1,1 +1,4 @@
-github "PlayCover/PlayTools" "master"
+# PlayTools sources are vendored at External/PlayTools (see External/README.md).
+# build-install-local.sh syncs External/PlayTools → Carthage/Checkouts and runs
+# `carthage build` without `carthage update`, so this pin is documentation only.
+github "PlayCover/PlayTools" "d688f695e83bf080be9ad4b7346e914c7c343d96"

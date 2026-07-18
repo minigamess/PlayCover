@@ -6,6 +6,8 @@ DERIVED_DATA_PATH="${ROOT_DIR}/.build/DerivedData"
 BUILD_APP_PATH="${DERIVED_DATA_PATH}/Build/Products/Release/PlayCover.app"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/Applications}"
 INSTALL_APP_PATH="${INSTALL_DIR}/PlayCover.app"
+VENDOR_PLAYTOOLS="${ROOT_DIR}/External/PlayTools"
+CHECKOUT_PLAYTOOLS="${ROOT_DIR}/Carthage/Checkouts/PlayTools"
 
 require_cmd() {
     if ! command -v "$1" >/dev/null 2>&1; then
@@ -79,6 +81,38 @@ ensure_carthage() {
     return 1
 }
 
+sync_vendored_playtools() {
+    if [[ ! -d "$VENDOR_PLAYTOOLS/PlayTools.xcodeproj" ]]; then
+        printf "Vendored PlayTools not found at %s\n" "$VENDOR_PLAYTOOLS" >&2
+        printf "Expected original PlayTools sources under External/PlayTools (committed in git).\n" >&2
+        exit 1
+    fi
+
+    printf "==> Syncing vendored PlayTools → Carthage/Checkouts/PlayTools...\n"
+    mkdir -p "${ROOT_DIR}/Carthage/Checkouts"
+    rm -rf "$CHECKOUT_PLAYTOOLS"
+    # Prefer rsync if available (excludes junk); fall back to cp
+    if command -v rsync >/dev/null 2>&1; then
+        rsync -a --delete \
+            --exclude '.git' \
+            --exclude 'xcuserdata' \
+            --exclude 'DerivedData' \
+            "$VENDOR_PLAYTOOLS/" "$CHECKOUT_PLAYTOOLS/"
+    else
+        cp -R "$VENDOR_PLAYTOOLS" "$CHECKOUT_PLAYTOOLS"
+    fi
+
+    # Carthage expects a git repo in Checkouts for some workflows; init a local one
+    if [[ ! -d "$CHECKOUT_PLAYTOOLS/.git" ]]; then
+        git -C "$CHECKOUT_PLAYTOOLS" init -q
+        git -C "$CHECKOUT_PLAYTOOLS" add -A
+        git -C "$CHECKOUT_PLAYTOOLS" \
+            -c user.email="playcover-local@localhost" \
+            -c user.name="PlayCover Local" \
+            commit -qm "vendored PlayTools" || true
+    fi
+}
+
 require_cmd ditto
 require_cmd codesign
 
@@ -107,8 +141,13 @@ if ! CARTHAGE_BIN="$(ensure_carthage)"; then
     exit 1
 fi
 
-printf "==> Bootstrapping Carthage dependencies...\n"
-FASTLANE=1 "$CARTHAGE_BIN" update --cache-builds --use-xcframeworks --project-directory "$ROOT_DIR"
+# Do NOT run `carthage update` — it re-fetches PlayTools and wipes local/vendored sources.
+sync_vendored_playtools
+
+printf "==> Building PlayTools (xcframework)...\n"
+rm -rf "${ROOT_DIR}/Carthage/Build/PlayTools.xcframework"
+rm -f "${ROOT_DIR}/Carthage/Build/.PlayTools.version"
+FASTLANE=1 "$CARTHAGE_BIN" build --no-use-binaries --use-xcframeworks --platform iOS --project-directory "$ROOT_DIR"
 
 printf "==> Building PlayCover (ad-hoc signing, no certificate required)...\n"
 xcodebuild \
@@ -154,6 +193,13 @@ else
 fi
 
 xattr -dr com.apple.quarantine "$INSTALL_APP_PATH" >/dev/null 2>&1 || true
+
+# Keep system PlayTools in sync (apps inject from ~/Library/Frameworks)
+printf "==> Installing PlayTools framework to ~/Library/Frameworks...\n"
+mkdir -p "${HOME}/Library/Frameworks"
+rm -rf "${HOME}/Library/Frameworks/PlayTools.framework"
+ditto "${INSTALL_APP_PATH}/Contents/Frameworks/PlayTools.framework" \
+    "${HOME}/Library/Frameworks/PlayTools.framework"
 
 printf "==> Done. Installed app: %s\n" "$INSTALL_APP_PATH"
 printf "==> Launching PlayCover...\n"
