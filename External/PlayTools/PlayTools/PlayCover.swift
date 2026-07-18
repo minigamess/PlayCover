@@ -23,24 +23,54 @@ public class PlayCover: NSObject {
             FileManager.default.changeCurrentDirectoryPath("/")
         }
 
+        // Forced rotation presents a temporary VC. If a native consent UIAlert is
+        // already up, that present/dismiss cycle makes the alert flash white / vanish.
+        // Wait until no UIAlertController is presented, then apply orientation.
         if PlaySettings.shared.displayRotation != 0 {
-            DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 0.5, execute: {
-                let rotateCommand = UIKeyCommand(
-                    title: "Keep Rotation Command",
-                    image: nil,
-                    action: #selector(UIApplication.rotateView(_:)),
-                    input: "",
-                    modifierFlags: [],
-                    propertyList: ["rotationIndex": PlaySettings.shared.displayRotation]
-                )
-                UIApplication.shared.sendAction(
-                    #selector(UIApplication.rotateView(_:)),
-                    to: UIApplication.shared,
-                    from: rotateCommand,
-                    for: nil
-                )
-            })
+            scheduleDisplayRotation(attemptsLeft: 40)
         }
+    }
+
+    /// Applies `displayRotation` once native alerts (e.g. terms consent) are gone.
+    private static func scheduleDisplayRotation(attemptsLeft: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            if isUIAlertControllerPresented() {
+                if attemptsLeft > 0 {
+                    scheduleDisplayRotation(attemptsLeft: attemptsLeft - 1)
+                }
+                return
+            }
+            let rotateCommand = UIKeyCommand(
+                title: "Keep Rotation Command",
+                image: nil,
+                action: #selector(UIApplication.rotateView(_:)),
+                input: "",
+                modifierFlags: [],
+                propertyList: ["rotationIndex": PlaySettings.shared.displayRotation]
+            )
+            UIApplication.shared.sendAction(
+                #selector(UIApplication.rotateView(_:)),
+                to: UIApplication.shared,
+                from: rotateCommand,
+                for: nil
+            )
+        }
+    }
+
+    private static func isUIAlertControllerPresented() -> Bool {
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows where !window.isHidden {
+                var vc: UIViewController? = window.rootViewController
+                while let current = vc {
+                    if current is UIAlertController {
+                        return true
+                    }
+                    vc = current.presentedViewController
+                }
+            }
+        }
+        return false
     }
 
     @objc static public func initMenu(menu: NSObject) {

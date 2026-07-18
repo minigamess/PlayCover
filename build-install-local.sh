@@ -144,10 +144,62 @@ fi
 # Do NOT run `carthage update` — it re-fetches PlayTools and wipes local/vendored sources.
 sync_vendored_playtools
 
-printf "==> Building PlayTools (xcframework)...\n"
+printf "==> Building PlayTools (iphoneos) via xcodebuild...\n"
+# carthage build often exits 0 with empty iOS products on newer Xcode; build directly.
+PLAYTOOLS_DD="${ROOT_DIR}/.build/PlayTools-iOS"
+PLAYTOOLS_FW="${PLAYTOOLS_DD}/Build/Products/Release-iphoneos/PlayTools.framework"
 rm -rf "${ROOT_DIR}/Carthage/Build/PlayTools.xcframework"
 rm -f "${ROOT_DIR}/Carthage/Build/.PlayTools.version"
-FASTLANE=1 "$CARTHAGE_BIN" build --no-use-binaries --use-xcframeworks --platform iOS --project-directory "$ROOT_DIR"
+FASTLANE=1 xcodebuild \
+    -project "${CHECKOUT_PLAYTOOLS}/PlayTools.xcodeproj" \
+    -scheme PlayTools \
+    -configuration Release \
+    -destination 'generic/platform=iOS' \
+    -derivedDataPath "$PLAYTOOLS_DD" \
+    CODE_SIGNING_ALLOWED=NO \
+    CODE_SIGN_IDENTITY="" \
+    CODE_SIGNING_REQUIRED=NO \
+    ONLY_ACTIVE_ARCH=NO \
+    build
+
+if [[ ! -f "${PLAYTOOLS_FW}/PlayTools" ]]; then
+    printf "PlayTools framework binary missing: %s\n" "${PLAYTOOLS_FW}/PlayTools" >&2
+    exit 1
+fi
+
+printf "==> Packaging PlayTools.xcframework for Carthage copy step...\n"
+XCFW="${ROOT_DIR}/Carthage/Build/PlayTools.xcframework"
+mkdir -p "${XCFW}/ios-arm64"
+ditto "$PLAYTOOLS_FW" "${XCFW}/ios-arm64/PlayTools.framework"
+cat > "${XCFW}/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>AvailableLibraries</key>
+	<array>
+		<dict>
+			<key>BinaryPath</key>
+			<string>PlayTools.framework/PlayTools</string>
+			<key>LibraryIdentifier</key>
+			<string>ios-arm64</string>
+			<key>LibraryPath</key>
+			<string>PlayTools.framework</string>
+			<key>SupportedArchitectures</key>
+			<array>
+				<string>arm64</string>
+			</array>
+			<key>SupportedPlatform</key>
+			<string>ios</string>
+		</dict>
+	</array>
+	<key>CFBundlePackageType</key>
+	<string>XFWK</string>
+	<key>XCFrameworkFormatVersion</key>
+	<string>1.0</string>
+</dict>
+</plist>
+PLIST
 
 printf "==> Building PlayCover (ad-hoc signing, no certificate required)...\n"
 xcodebuild \

@@ -117,7 +117,7 @@ __attribute__((visibility("hidden")))
     return @{};
 }
 
-// Endfield UIAlertController hook
+// Endfield UIAlertController hook (blocks jailbreak alerts)
 - (void)pm_endfield_presentViewController:(UIViewController *)viewControllerToPresent
                                  animated:(BOOL)flag
                                completion:(void (^)(void))completion {
@@ -132,6 +132,68 @@ __attribute__((visibility("hidden")))
     
     // Otherwise, present normally
     [self pm_endfield_presentViewController:viewControllerToPresent animated:flag completion:completion];
+}
+
+// Mac/PlayCover: UIAlertController often flashes white / presents off-screen when
+// the presenter is not the key-window topmost VC, or uses a compact sheet style.
+- (void)pm_alertfix_presentViewController:(UIViewController *)viewControllerToPresent
+                                   animated:(BOOL)flag
+                                 completion:(void (^)(void))completion {
+    if ([viewControllerToPresent isKindOfClass:[UIAlertController class]]) {
+        UIWindow *keyWindow = nil;
+        for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+            if (scene.activationState != UISceneActivationStateForegroundActive) {
+                continue;
+            }
+            if (![scene isKindOfClass:[UIWindowScene class]]) {
+                continue;
+            }
+            for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+                if (window.isKeyWindow) {
+                    keyWindow = window;
+                    break;
+                }
+            }
+            if (keyWindow) {
+                break;
+            }
+        }
+        if (!keyWindow) {
+            for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+                if (![scene isKindOfClass:[UIWindowScene class]]) {
+                    continue;
+                }
+                UIWindowScene *ws = (UIWindowScene *)scene;
+                if (ws.windows.count > 0) {
+                    keyWindow = ws.windows.firstObject;
+                    break;
+                }
+            }
+        }
+
+        UIViewController *top = keyWindow.rootViewController;
+        while (top.presentedViewController != nil &&
+               ![top.presentedViewController isKindOfClass:[UIAlertController class]]) {
+            top = top.presentedViewController;
+        }
+
+        // Prefer a full-screen overlay so the alert is not clipped by transformed
+        // / aspect-ratio-fixed game views on Mac.
+        viewControllerToPresent.modalPresentationStyle = UIModalPresentationOverFullScreen;
+
+        if (top != nil && top != self) {
+            NSLog(@"PC-DEBUG: [PlayShadow] Redirect UIAlertController present %@ -> %@",
+                  NSStringFromClass([self class]), NSStringFromClass([top class]));
+            [top pm_alertfix_presentViewController:viewControllerToPresent
+                                            animated:flag
+                                          completion:completion];
+            return;
+        }
+    }
+
+    [self pm_alertfix_presentViewController:viewControllerToPresent
+                                    animated:flag
+                                  completion:completion];
 }
 
 // Class methods
@@ -192,10 +254,16 @@ __attribute__((visibility("hidden")))
     
     // Block UIAlertController presentation to bypass Endfield jailbreak message
     NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
-    if ([bundleID isEqualToString:@"com.gryphline.endfield.ios"] || 
-    [bundleID isEqualToString:@"com.hypergryph.endfield"]) {
+    if ([bundleID isEqualToString:@"com.gryphline.endfield.ios"] ||
+        [bundleID isEqualToString:@"com.hypergryph.endfield"]) {
         [self debugLogger:@"loading UIAlertController bypass"];
-        [objc_getClass("UIViewController") swizzleInstanceMethod:@selector(presentViewController:animated:completion:) withMethod:@selector(pm_endfield_presentViewController:animated:completion:)];
+        [objc_getClass("UIViewController") swizzleInstanceMethod:@selector(presentViewController:animated:completion:)
+                                                      withMethod:@selector(pm_endfield_presentViewController:animated:completion:)];
+    } else {
+        // Fix native consent / system alerts that flash white and never appear on Mac
+        [self debugLogger:@"loading UIAlertController presentation fix"];
+        [objc_getClass("UIViewController") swizzleInstanceMethod:@selector(presentViewController:animated:completion:)
+                                                      withMethod:@selector(pm_alertfix_presentViewController:animated:completion:)];
     }
 }
 
