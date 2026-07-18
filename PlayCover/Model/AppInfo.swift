@@ -267,4 +267,70 @@ public class AppInfo {
             }
         }
     }
+
+    // MARK: - Interface Orientation
+
+    /// Raw orientation strings from Info.plist.
+    /// Prefers iPad key (PlayCover typically reports as iPad), then iPhone key,
+    /// then scene-based manifests used by newer apps.
+    var supportedInterfaceOrientations: [String] {
+        if let ipad = self[strings: "UISupportedInterfaceOrientations~ipad"], !ipad.isEmpty {
+            return ipad
+        }
+        if let phone = self[strings: "UISupportedInterfaceOrientations"], !phone.isEmpty {
+            return phone
+        }
+        return sceneSupportedInterfaceOrientations
+    }
+
+    /// PlayTools `displayRotation` inferred from Info.plist:
+    /// `0` default, `1` portrait, `2` landscapeRight, `3` portraitUpsideDown.
+    /// Returns `0` when both axes are supported or orientations are unknown.
+    var preferredDisplayRotation: Int {
+        Self.displayRotation(from: supportedInterfaceOrientations)
+    }
+
+    static func displayRotation(from orientations: [String]) -> Int {
+        guard !orientations.isEmpty else { return 0 }
+
+        let set = Set(orientations)
+        let hasPortrait = set.contains("UIInterfaceOrientationPortrait")
+        let hasUpsideDown = set.contains("UIInterfaceOrientationPortraitUpsideDown")
+        let hasLandscapeLeft = set.contains("UIInterfaceOrientationLandscapeLeft")
+        let hasLandscapeRight = set.contains("UIInterfaceOrientationLandscapeRight")
+
+        let portraitOnly = (hasPortrait || hasUpsideDown) && !hasLandscapeLeft && !hasLandscapeRight
+        let landscapeOnly = (hasLandscapeLeft || hasLandscapeRight) && !hasPortrait && !hasUpsideDown
+
+        if portraitOnly {
+            // Prefer upright portrait when available; otherwise upside-down only.
+            if hasPortrait { return 1 }
+            return 3
+        }
+        if landscapeOnly {
+            return 2
+        }
+        return 0
+    }
+
+    private var sceneSupportedInterfaceOrientations: [String] {
+        guard let manifest = self[dictionary: "UIApplicationSceneManifest"],
+              let configs = manifest["UISceneConfigurations"] as? NSDictionary else {
+            return []
+        }
+
+        // Walk common session roles for UIWindowScene
+        for case let sessions as NSArray in configs.allValues {
+            for case let session as NSDictionary in sessions {
+                if let list = session["UISceneSupportedInterfaceOrientations"] as? [String], !list.isEmpty {
+                    return list
+                }
+                // Rare: single string instead of array
+                if let single = session["UISceneSupportedInterfaceOrientations"] as? String, !single.isEmpty {
+                    return [single]
+                }
+            }
+        }
+        return []
+    }
 }

@@ -117,7 +117,20 @@ class Installer {
                     finalURL = try ipa.packIPABack(app: app.url)
                 } else {
                     finalURL = try wrap(app)
+
+                    // Check before PlayApp init: AppSettings creates a default plist if missing.
+                    let settingsURL = AppSettings.appSettingsDir
+                        .appendingPathComponent(app.info.bundleIdentifier)
+                        .appendingPathExtension("plist")
+                    let isNewAppSettings = !FileManager.default.fileExists(atPath: settingsURL.path)
+
                     let installedApp = PlayApp(appUrl: finalURL)
+
+                    // Auto-detect portrait/landscape from Info.plist for brand-new settings only.
+                    // Existing per-app settings are preserved on reinstall/update.
+                    if installPlayTools && isNewAppSettings {
+                        applyDetectedDisplayRotationIfNeeded(to: installedApp)
+                    }
 
                     installedApp.sign()
                 }
@@ -236,5 +249,34 @@ class Installer {
 
         try FileManager.default.moveItem(at: baseApp.url, to: location)
         return location
+    }
+
+    /// Applies Info.plist orientation plus the display settings needed for it to take effect.
+    /// Call only for brand-new app settings.
+    /// Does nothing if orientations are mixed/unknown (`preferredDisplayRotation == 0`).
+    static func applyDetectedDisplayRotationIfNeeded(to app: PlayApp) {
+        let detected = app.info.preferredDisplayRotation
+        guard detected != 0 else {
+            print("[Installer] Orientation auto-detect: mixed/unknown for \(app.info.bundleIdentifier), keeping default")
+            return
+        }
+
+        var updated = app.settings.settings
+        updated.displayRotation = detected
+        // With App Default resolution, portrait only becomes upright when window fix is on
+        // (inverseScreenValues hooks bounds/orientation). Keep resolution on App Default.
+        updated.resolution = 0
+        updated.inverseScreenValues = true
+        updated.windowFixMethod = 0
+        app.settings.settings = updated
+
+        let label: String
+        switch detected {
+        case 1: label = "portrait"
+        case 2: label = "landscape"
+        case 3: label = "portraitUpsideDown"
+        default: label = "rotation(\(detected))"
+        }
+        print("[Installer] Orientation auto-detect: \(app.info.bundleIdentifier) -> \(label) (displayRotation=\(detected), windowFix=on) orientations=\(app.info.supportedInterfaceOrientations)")
     }
 }

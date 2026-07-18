@@ -15,11 +15,12 @@ struct AppSettingsData: Codable {
 
     var disableTimeout = false
     var displayRotation = 0
-    var iosDeviceModel = "iPad13,8"
+    var iosDeviceModel = "iPhone17,2"
     var windowWidth = 1920
     var windowHeight = 1080
     var customScaler = 2.0
-    var resolution = 1
+    /// 0 = App Default. Pairs better with iPhone device identity than Auto (Mac landscape).
+    var resolution = 0
     var aspectRatio = 1
     var notch: Bool = NSScreen.hasNotch()
     var bypass = false
@@ -27,7 +28,8 @@ struct AppSettingsData: Codable {
     var version = "3.0.0"
     var playChain = true
     var playChainDebugging = false
-    var inverseScreenValues = false
+    /// Required with App Default resolution for many portrait apps to actually render upright.
+    var inverseScreenValues = true
     var metalHUD = false {
         didSet {
             do {
@@ -63,11 +65,11 @@ struct AppSettingsData: Codable {
         sensitivity = try container.decodeIfPresent(Float.self, forKey: .sensitivity) ?? 50
         disableTimeout = try container.decodeIfPresent(Bool.self, forKey: .disableTimeout) ?? false
         displayRotation = try container.decodeIfPresent(Int.self, forKey: .displayRotation) ?? 0
-        iosDeviceModel = try container.decodeIfPresent(String.self, forKey: .iosDeviceModel) ?? "iPad13,8"
+        iosDeviceModel = try container.decodeIfPresent(String.self, forKey: .iosDeviceModel) ?? "iPhone17,2"
         windowWidth = try container.decodeIfPresent(Int.self, forKey: .windowWidth) ?? 1920
         windowHeight = try container.decodeIfPresent(Int.self, forKey: .windowHeight) ?? 1080
         customScaler = try container.decodeIfPresent(Double.self, forKey: .customScaler) ?? 2.0
-        resolution = try container.decodeIfPresent(Int.self, forKey: .resolution) ?? 1
+        resolution = try container.decodeIfPresent(Int.self, forKey: .resolution) ?? 0
         aspectRatio = try container.decodeIfPresent(Int.self, forKey: .aspectRatio) ?? 1
         notch = try container.decodeIfPresent(Bool.self, forKey: .notch) ?? NSScreen.hasNotch()
         bypass = try container.decodeIfPresent(Bool.self, forKey: .bypass) ?? false
@@ -76,7 +78,7 @@ struct AppSettingsData: Codable {
         version = try container.decodeIfPresent(String.self, forKey: .version) ?? "3.0.0"
         playChain = try container.decodeIfPresent(Bool.self, forKey: .playChain) ?? true
         playChainDebugging = try container.decodeIfPresent(Bool.self, forKey: .playChainDebugging) ?? false
-        inverseScreenValues = try container.decodeIfPresent(Bool.self, forKey: .inverseScreenValues) ?? false
+        inverseScreenValues = try container.decodeIfPresent(Bool.self, forKey: .inverseScreenValues) ?? true
         metalHUD = try container.decodeIfPresent(Bool.self, forKey: .metalHUD) ?? false
         windowFixMethod = try container.decodeIfPresent(Int.self, forKey: .windowFixMethod) ?? 0
         injectIntrospection = try container.decodeIfPresent(Bool.self, forKey: .injectIntrospection) ?? false
