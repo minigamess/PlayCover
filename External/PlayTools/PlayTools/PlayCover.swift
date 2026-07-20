@@ -17,6 +17,8 @@ public class PlayCover: NSObject {
         PlayScreen.shared.initialize()
         PlayInput.shared.initialize()
         DiscordIPC.shared.initialize()
+        // Step-1 feasibility: in-process screenshot when PLAYTOOLS_SCREENSHOT_PROBE=1
+        ScreenCaptureProbe.maybeStart()
 
         if PlaySettings.shared.rootWorkDir {
             // Change the working directory to / just like iOS

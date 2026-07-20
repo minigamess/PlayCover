@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1B2C3D4E5F60718293A4B02 /* ScreenCaptureProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B01 /* ScreenCaptureProbe.swift */; };
 		2847AE48298EFC0F00B0F983 /* PlayScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2847AE47298EFC0F00B0F983 /* PlayScreen.swift */; };
 		6E76639B28D0FAE700DE4AF9 /* Plugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E76639A28D0FAE700DE4AF9 /* Plugin.swift */; };
 		6E76639C28D0FAE700DE4AF9 /* Plugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E76639A28D0FAE700DE4AF9 /* Plugin.swift */; };
@@ -104,6 +105,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A1B2C3D4E5F60718293A4B01 /* ScreenCaptureProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureProbe.swift; sourceTree = "<group>"; };
 		2847AE47298EFC0F00B0F983 /* PlayScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayScreen.swift; sourceTree = "<group>"; };
 		6E76639628D0FA6200DE4AF9 /* AKInterface-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "AKInterface-Bridging-Header.h"; sourceTree = "<group>"; };
 		6E76639A28D0FAE700DE4AF9 /* Plugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Plugin.swift; sourceTree = "<group>"; };
@@ -434,9 +436,18 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		A1B2C3D4E5F60718293A4B03 /* Agent */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F60718293A4B01 /* ScreenCaptureProbe.swift */,
+			);
+			path = Agent;
+			sourceTree = "<group>";
+		};
 		AA7196DA287A447700623C15 /* PlayTools */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D4E5F60718293A4B03 /* Agent */,
 				ABCECEE729750BB100746595 /* MysticRunes */,
 				B127172328817AC70025112B /* DiscordActivity */,
 				AA719721287A480C00623C15 /* Controls */,
@@ -743,6 +754,7 @@
 				6E7663A528D0FEBE00DE4AF9 /* AKPluginLoader.swift in Sources */,
 				9562D16F2AB50D34002C329D /* ActionDispatcher.swift in Sources */,
 				2847AE48298EFC0F00B0F983 /* PlayScreen.swift in Sources */,
+				A1B2C3D4E5F60718293A4B02 /* ScreenCaptureProbe.swift in Sources */,
 				9562D1532AB484FD002C329D /* EventAdapter.swift in Sources */,
 				AA7197A2287A481500623C15 /* CircleMenu.swift in Sources */,
 				954389CE2B39F26600B063BB /* ElementView.swift in Sources */,
