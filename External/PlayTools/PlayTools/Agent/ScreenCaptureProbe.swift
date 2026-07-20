@@ -3,6 +3,7 @@
 //  PlayTools
 //
 //  Step 1: in-process screenshot probe (no external agent).
+//  Capture path: UIKit only (key window drawHierarchy).
 //  Enable: env PLAYTOOLS_SCREENSHOT_PROBE=1
 //  Optional delay seconds: PLAYTOOLS_SCREENSHOT_PROBE_DELAY (default 8)
 //
@@ -26,53 +27,42 @@ enum ScreenCaptureProbe {
         }
     }
 
+    struct CaptureResult {
+        let image: UIImage
+        let method: String
+        let meta: [String: Any]
+    }
+
+    /// UIKit key-window capture only (no fallback).
+    static func captureBest() -> CaptureResult? {
+        guard let (img, meta) = captureUIKit() else { return nil }
+        return CaptureResult(image: img, method: "uikit", meta: meta)
+    }
+
     /// Capture once and write PNG + JSON report to Documents.
     @discardableResult
     static func runOnce() -> URL? {
-        let reportDir = makeReportDir()
+        let reportDir = makeReportDir(folder: "PlayToolsScreenshotProbe")
         var report: [String: Any] = [
             "ts": ISO8601DateFormatter().string(from: Date()),
             "bundleId": Bundle.main.bundleIdentifier ?? "",
-            "methods": [String]()
+            "method": "uikit"
         ]
 
-        var methods = [String]()
         var bestURL: URL?
         var bestBytes = 0
 
-        // Method A: UIKit key window hierarchy
         if let (img, meta) = captureUIKit() {
-            methods.append("uikit")
             report["uikit"] = meta
             if let url = writePNG(img, dir: reportDir, name: "shot_uikit.png") {
                 report["uikitPath"] = url.path
-                let n = (try? Data(contentsOf: url).count) ?? 0
-                if n > bestBytes {
-                    bestBytes = n
-                    bestURL = url
-                }
+                bestURL = url
+                bestBytes = (try? Data(contentsOf: url).count) ?? 0
             }
         } else {
             report["uikit"] = ["ok": false, "error": "no image"]
         }
 
-        // Method B: CGWindowList via dlsym (macOS host API; not in iOS SDK headers)
-        if let (img, meta) = captureCGWindowRuntime() {
-            methods.append("cgwindow")
-            report["cgwindow"] = meta
-            if let url = writePNG(img, dir: reportDir, name: "shot_cgwindow.png") {
-                report["cgwindowPath"] = url.path
-                let n = (try? Data(contentsOf: url).count) ?? 0
-                if n > bestBytes {
-                    bestBytes = n
-                    bestURL = url
-                }
-            }
-        } else {
-            report["cgwindow"] = ["ok": false, "error": "unavailable or failed"]
-        }
-
-        report["methods"] = methods
         report["bestPath"] = bestURL?.path ?? ""
         report["bestBytes"] = bestBytes
 
@@ -81,17 +71,17 @@ enum ScreenCaptureProbe {
             try? data.write(to: reportURL)
         }
 
-        let summary = "Screenshot probe: methods=\(methods) bestBytes=\(bestBytes) dir=\(reportDir.path)"
+        let summary = "Screenshot probe: method=uikit bestBytes=\(bestBytes) dir=\(reportDir.path)"
         NSLog("%@ %@", logTag, summary)
         DispatchQueue.main.async {
             Toast.showHint(title: "Screenshot probe", text: [
-                "methods: \(methods.joined(separator: ","))",
+                "method: uikit",
                 "bytes: \(bestBytes)",
                 reportDir.lastPathComponent
             ])
         }
 
-        mirrorToPlayCoverContainer(reportDir)
+        mirrorToPlayCoverContainer(reportDir, subfolder: "ScreenshotProbe")
         return bestURL
     }
 
@@ -127,48 +117,6 @@ enum ScreenCaptureProbe {
         return (image, meta)
     }
 
-    /// Resolve CGWindowListCreateImage at runtime (present on Mac host for iOS apps).
-    private static func captureCGWindowRuntime() -> (UIImage, [String: Any])? {
-        guard let nsWindow = PlayScreen.shared.nsWindow else { return nil }
-        guard let windowNumber = nsWindow.value(forKey: "windowNumber") as? Int, windowNumber > 0 else {
-            return nil
-        }
-
-        // CGImageRef CGWindowListCreateImage(CGRect, CGWindowListOption, CGWindowID, CGWindowImageOption)
-        typealias CGWindowListCreateImageFn = @convention(c) (
-            CGRect, UInt32, UInt32, UInt32
-        ) -> Unmanaged<CGImage>?
-
-        guard let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGWindowListCreateImage") else {
-            return nil
-        }
-        let createImage = unsafeBitCast(sym, to: CGWindowListCreateImageFn.self)
-
-        // kCGWindowListOptionIncludingWindow = 1 << 0 = 1
-        // kCGWindowImageBoundsIgnoreFraming = 1 << 0 = 1
-        // kCGWindowImageBestResolution = 1 << 1 = 2
-        let listOption: UInt32 = 1
-        let imageOption: UInt32 = 1 | 2
-        guard let unmanaged = createImage(.null, listOption, UInt32(windowNumber), imageOption) else {
-            return nil
-        }
-        let cgImage = unmanaged.takeUnretainedValue()
-        let image = UIImage(cgImage: cgImage)
-        var meta: [String: Any] = [
-            "ok": true,
-            "windowNumber": windowNumber,
-            "pixelW": cgImage.width,
-            "pixelH": cgImage.height
-        ]
-        if let avg = averageLuma(image) {
-            meta["avgLuma"] = avg
-            if avg < 0.02 {
-                meta["warning"] = "very_dark_possible_black_frame"
-            }
-        }
-        return (image, meta)
-    }
-
     // MARK: - Helpers
 
     private static func resolveKeyWindow() -> UIWindow? {
@@ -182,18 +130,18 @@ enum ScreenCaptureProbe {
         return nil
     }
 
-    private static func makeReportDir() -> URL {
+    static func makeReportDir(folder: String) -> URL {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
         let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
         let dir = docs
-            .appendingPathComponent("PlayToolsScreenshotProbe", isDirectory: true)
+            .appendingPathComponent(folder, isDirectory: true)
             .appendingPathComponent(stamp, isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }
 
-    private static func writePNG(_ image: UIImage, dir: URL, name: String) -> URL? {
+    static func writePNG(_ image: UIImage, dir: URL, name: String) -> URL? {
         guard let data = image.pngData() else { return nil }
         let url = dir.appendingPathComponent(name)
         do {
@@ -233,18 +181,16 @@ enum ScreenCaptureProbe {
         return sum / Double(n)
     }
 
-    private static func mirrorToPlayCoverContainer(_ dir: URL) {
-        // iOS SDK: use NSHomeDirectory() which on Mac maps to the app container home.
-        // Also try the real user home via getpwuid for PlayCover shared folder.
+    static func mirrorToPlayCoverContainer(_ dir: URL, subfolder: String) {
         let candidates: [URL] = {
             var list: [URL] = []
             list.append(URL(fileURLWithPath: NSHomeDirectory())
-                .appendingPathComponent("Documents/PlayToolsScreenshotProbe"))
+                .appendingPathComponent("Documents/\(subfolder)"))
             if let pw = getpwuid(getuid()), let home = pw.pointee.pw_dir {
                 let userHome = String(cString: home)
                 list.append(URL(fileURLWithPath: userHome)
                     .appendingPathComponent(
-                        "Library/Containers/io.playcover.PlayCover/ScreenshotProbe"))
+                        "Library/Containers/io.playcover.PlayCover/\(subfolder)"))
             }
             return list
         }()

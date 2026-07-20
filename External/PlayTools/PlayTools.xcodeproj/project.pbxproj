@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1B2C3D4E5F60718293A4B22 /* TouchProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B21 /* TouchProbe.swift */; };
+		A1B2C3D4E5F60718293A4B12 /* OCRProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B11 /* OCRProbe.swift */; };
 		A1B2C3D4E5F60718293A4B02 /* ScreenCaptureProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B01 /* ScreenCaptureProbe.swift */; };
 		2847AE48298EFC0F00B0F983 /* PlayScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2847AE47298EFC0F00B0F983 /* PlayScreen.swift */; };
 		6E76639B28D0FAE700DE4AF9 /* Plugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E76639A28D0FAE700DE4AF9 /* Plugin.swift */; };
@@ -105,6 +107,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A1B2C3D4E5F60718293A4B21 /* TouchProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchProbe.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B11 /* OCRProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRProbe.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B01 /* ScreenCaptureProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureProbe.swift; sourceTree = "<group>"; };
 		2847AE47298EFC0F00B0F983 /* PlayScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayScreen.swift; sourceTree = "<group>"; };
 		6E76639628D0FA6200DE4AF9 /* AKInterface-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "AKInterface-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -440,6 +444,8 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D4E5F60718293A4B01 /* ScreenCaptureProbe.swift */,
+				A1B2C3D4E5F60718293A4B11 /* OCRProbe.swift */,
+				A1B2C3D4E5F60718293A4B21 /* TouchProbe.swift */,
 			);
 			path = Agent;
 			sourceTree = "<group>";
@@ -755,6 +761,8 @@
 				9562D16F2AB50D34002C329D /* ActionDispatcher.swift in Sources */,
 				2847AE48298EFC0F00B0F983 /* PlayScreen.swift in Sources */,
 				A1B2C3D4E5F60718293A4B02 /* ScreenCaptureProbe.swift in Sources */,
+				A1B2C3D4E5F60718293A4B12 /* OCRProbe.swift in Sources */,
+				A1B2C3D4E5F60718293A4B22 /* TouchProbe.swift in Sources */,
 				9562D1532AB484FD002C329D /* EventAdapter.swift in Sources */,
 				AA7197A2287A481500623C15 /* CircleMenu.swift in Sources */,
 				954389CE2B39F26600B063BB /* ElementView.swift in Sources */,
