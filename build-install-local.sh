@@ -240,10 +240,11 @@ rm -rf "${ROOT_DIR}/Carthage/Build/PlayTools.xcframework"
 rm -f "${ROOT_DIR}/Carthage/Build/.PlayTools.version"
 
 # 1) Build macOS AKInterface first (AppKit plugin; must keep Contents/MacOS binary).
+# Newer Xcode requires -scheme (not -target) when using -derivedDataPath.
 printf "==> Building AKInterface (macOS)...\n"
 FASTLANE=1 xcodebuild \
     -project "${CHECKOUT_PLAYTOOLS}/PlayTools.xcodeproj" \
-    -target AKInterface \
+    -scheme AKInterface \
     -configuration Release \
     -destination 'generic/platform=macOS' \
     -derivedDataPath "$PLAYTOOLS_DD" \

@@ -731,12 +731,16 @@
 			name = "Restore AKInterface";
 			outputFileListPaths = (
 			);
+			/* Do not list the embedded binary as an output: Embed Frameworks already
+			   copies AKInterface.bundle into PlugIns, and the new build system
+			   errors with "Multiple commands produce" if this phase also claims
+			   Contents/MacOS/AKInterface. Use a stamp file instead. */
 			outputPaths = (
-				"$(TARGET_BUILD_DIR)/$(FULL_PRODUCT_NAME)/PlugIns/AKInterface.bundle/Contents/MacOS/AKInterface",
+				"$(DERIVED_FILE_DIR)/akinterface-restored.stamp",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${SRCROOT}/Scripts/restore-akinterface.sh\"\n";
+			shellScript = "\"${SRCROOT}/Scripts/restore-akinterface.sh\"\n# Stamp so xcodebuild dependency analysis has a unique output (not the embedded binary).\nmkdir -p \"${DERIVED_FILE_DIR}\"\ntouch \"${DERIVED_FILE_DIR}/akinterface-restored.stamp\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
