@@ -24,24 +24,103 @@ ad_hoc_resign_app() {
     codesign --verify --deep --strict "$app_path"
 }
 
+# Path to the macOS Mach-O inside AKInterface.bundle (Contents/MacOS layout).
+akinterface_binary() {
+    local bundle="$1"
+    if [[ -f "${bundle}/Contents/MacOS/AKInterface" ]]; then
+        printf '%s\n' "${bundle}/Contents/MacOS/AKInterface"
+        return 0
+    fi
+    if [[ -f "${bundle}/AKInterface" ]]; then
+        printf '%s\n' "${bundle}/AKInterface"
+        return 0
+    fi
+    return 1
+}
+
+# Fail the build if framework (or app-embedded framework) lacks the plugin binary.
+# Usage: require_akinterface_in_framework <PlayTools.framework> [label]
+require_akinterface_in_framework() {
+    local fw="$1"
+    local label="${2:-$fw}"
+    local bundle="${fw}/PlugIns/AKInterface.bundle"
+    local bin
+
+    if ! bin="$(akinterface_binary "${bundle}")"; then
+        printf "error: AKInterface binary missing in %s\n" "${label}" >&2
+        printf "  expected: %s/Contents/MacOS/AKInterface\n" "${bundle}" >&2
+        printf "  (macOS plugin was stripped when embedding into the iOS framework)\n" >&2
+        return 1
+    fi
+    if [[ ! -x "${bin}" ]]; then
+        chmod +x "${bin}" || true
+    fi
+    printf "    OK AKInterface (%s) in %s\n" "$(du -h "${bin}" | awk '{print $1}')" "${label}"
+}
+
+# Copy a complete AKInterface.bundle into a PlayTools.framework tree.
+restore_akinterface_into_framework() {
+    local src_bundle="$1"
+    local fw="$2"
+    local script="${CHECKOUT_PLAYTOOLS}/Scripts/restore-akinterface.sh"
+
+    if [[ -x "${script}" ]]; then
+        "${script}" "${src_bundle}" "${fw}"
+    else
+        # Fallback if checkout was not synced yet
+        mkdir -p "${fw}/PlugIns"
+        rm -rf "${fw}/PlugIns/AKInterface.bundle"
+        ditto "${src_bundle}" "${fw}/PlugIns/AKInterface.bundle"
+    fi
+    require_akinterface_in_framework "${fw}"
+}
+
 setup_developer_dir() {
     local selected=""
     local xcode_dev_dir="/Applications/Xcode.app/Contents/Developer"
 
-    if command -v xcode-select >/dev/null 2>&1; then
-        selected="$(xcode-select -p 2>/dev/null || true)"
-    fi
-
-    if [[ -n "$selected" && -x "$selected/usr/bin/xcodebuild" ]]; then
-        export DEVELOPER_DIR="$selected"
-        return 0
-    fi
-
+    # Prefer a full Xcode.app toolchain over Command Line Tools.
+    # CLT has an xcodebuild stub that cannot build iOS/macOS app schemes.
     if [[ -d "$xcode_dev_dir" && -x "$xcode_dev_dir/usr/bin/xcodebuild" ]]; then
         export DEVELOPER_DIR="$xcode_dev_dir"
         return 0
     fi
 
+    if command -v xcode-select >/dev/null 2>&1; then
+        selected="$(xcode-select -p 2>/dev/null || true)"
+    fi
+
+    if [[ -n "$selected" && -x "$selected/usr/bin/xcodebuild" && "$selected" != *CommandLineTools* ]]; then
+        export DEVELOPER_DIR="$selected"
+        return 0
+    fi
+
+    return 1
+}
+
+# PlayTools must build for generic iOS device (iphoneos). On Xcode 16+,
+# that destination is ineligible until the iOS platform component is installed.
+ensure_ios_platform() {
+    local dest_out
+    dest_out="$(xcodebuild \
+        -project "${CHECKOUT_PLAYTOOLS}/PlayTools.xcodeproj" \
+        -scheme PlayTools \
+        -showdestinations 2>/dev/null || true)"
+
+    if printf '%s\n' "$dest_out" | grep -q 'platform:iOS' \
+        && ! printf '%s\n' "$dest_out" | grep -q 'error:iOS .* is not installed'; then
+        return 0
+    fi
+
+    printf "iOS platform is not installed (required to build PlayTools for iphoneos).\n" >&2
+    printf "Xcode reports destinations like:\n" >&2
+    printf "  { platform:iOS, ... error:iOS X.Y is not installed. }\n" >&2
+    printf "\nInstall it with either:\n" >&2
+    printf "  1) Xcode > Settings > Components > download iOS\n" >&2
+    printf "  2) DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \\\\\n" >&2
+    printf "       xcodebuild -downloadPlatform iOS\n" >&2
+    printf "\n(The CLI download is the iOS Simulator runtime ~8+ GB; it also\n" >&2
+    printf " enables the generic/platform=iOS device destination.)\n" >&2
     return 1
 }
 
@@ -144,12 +223,44 @@ fi
 # Do NOT run `carthage update` — it re-fetches PlayTools and wipes local/vendored sources.
 sync_vendored_playtools
 
-printf "==> Building PlayTools (iphoneos) via xcodebuild...\n"
+if ! ensure_ios_platform; then
+    exit 1
+fi
+
 # carthage build often exits 0 with empty iOS products on newer Xcode; build directly.
+# Destination generic/platform=iOS requires the iOS platform component (see ensure_ios_platform).
+#
+# AKInterface is a macOS AppKit plugin. Building PlayTools for iphoneos embeds it via
+# CodeSignOnCopy and often drops Contents/MacOS/AKInterface — that empty bundle causes
+# games to crash on AKInterface.shared!. Build the plugin for macOS first, then re-inject.
 PLAYTOOLS_DD="${ROOT_DIR}/.build/PlayTools-iOS"
 PLAYTOOLS_FW="${PLAYTOOLS_DD}/Build/Products/Release-iphoneos/PlayTools.framework"
+PLAYTOOLS_AK_BUNDLE="${PLAYTOOLS_DD}/Build/Products/Release/AKInterface.bundle"
 rm -rf "${ROOT_DIR}/Carthage/Build/PlayTools.xcframework"
 rm -f "${ROOT_DIR}/Carthage/Build/.PlayTools.version"
+
+# 1) Build macOS AKInterface first (AppKit plugin; must keep Contents/MacOS binary).
+printf "==> Building AKInterface (macOS)...\n"
+FASTLANE=1 xcodebuild \
+    -project "${CHECKOUT_PLAYTOOLS}/PlayTools.xcodeproj" \
+    -target AKInterface \
+    -configuration Release \
+    -destination 'generic/platform=macOS' \
+    -derivedDataPath "$PLAYTOOLS_DD" \
+    CODE_SIGNING_ALLOWED=NO \
+    CODE_SIGN_IDENTITY="" \
+    CODE_SIGNING_REQUIRED=NO \
+    ONLY_ACTIVE_ARCH=NO \
+    build
+
+if ! akinterface_binary "${PLAYTOOLS_AK_BUNDLE}" >/dev/null; then
+    printf "AKInterface macOS binary missing after build: %s\n" \
+        "${PLAYTOOLS_AK_BUNDLE}/Contents/MacOS/AKInterface" >&2
+    exit 1
+fi
+
+# 2) Build PlayTools for iphoneos (scheme also embeds AKInterface; binary is often stripped).
+printf "==> Building PlayTools (iphoneos)...\n"
 FASTLANE=1 xcodebuild \
     -project "${CHECKOUT_PLAYTOOLS}/PlayTools.xcodeproj" \
     -scheme PlayTools \
@@ -167,10 +278,17 @@ if [[ ! -f "${PLAYTOOLS_FW}/PlayTools" ]]; then
     exit 1
 fi
 
+# 3) Always re-inject the full macOS plugin (project Run Script may already have done this).
+printf "==> Ensuring full AKInterface.bundle is inside PlayTools.framework...\n"
+restore_akinterface_into_framework "${PLAYTOOLS_AK_BUNDLE}" "${PLAYTOOLS_FW}"
+
 printf "==> Packaging PlayTools.xcframework for Carthage copy step...\n"
 XCFW="${ROOT_DIR}/Carthage/Build/PlayTools.xcframework"
 mkdir -p "${XCFW}/ios-arm64"
 ditto "$PLAYTOOLS_FW" "${XCFW}/ios-arm64/PlayTools.framework"
+require_akinterface_in_framework \
+    "${XCFW}/ios-arm64/PlayTools.framework" \
+    "Carthage/Build/PlayTools.xcframework"
 cat > "${XCFW}/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -222,6 +340,22 @@ if [[ ! -d "$BUILD_APP_PATH" ]]; then
     exit 1
 fi
 
+# PlayCover may copy frameworks without the plugin binary if packaging raced;
+# re-check and restore into the app bundle before signing.
+APP_PLAYTOOLS_FW="${BUILD_APP_PATH}/Contents/Frameworks/PlayTools.framework"
+# macOS frameworks use Versions/A; PlugIns is usually a symlink to Versions/Current/PlugIns
+if [[ -d "${APP_PLAYTOOLS_FW}/Versions/A" ]]; then
+    APP_PLAYTOOLS_FW_RESOLVED="${APP_PLAYTOOLS_FW}/Versions/A"
+else
+    APP_PLAYTOOLS_FW_RESOLVED="${APP_PLAYTOOLS_FW}"
+fi
+
+printf "==> Verifying AKInterface inside PlayCover.app...\n"
+if ! require_akinterface_in_framework "${APP_PLAYTOOLS_FW_RESOLVED}" "PlayCover.app PlayTools" 2>/dev/null; then
+    printf "==> Restoring AKInterface into PlayCover.app PlayTools.framework...\n"
+    restore_akinterface_into_framework "${PLAYTOOLS_AK_BUNDLE}" "${APP_PLAYTOOLS_FW_RESOLVED}"
+fi
+
 ad_hoc_resign_app "$BUILD_APP_PATH"
 
 printf "==> Closing running PlayCover instance (if any)...\n"
@@ -253,6 +387,15 @@ rm -rf "${HOME}/Library/Frameworks/PlayTools.framework"
 ditto "${INSTALL_APP_PATH}/Contents/Frameworks/PlayTools.framework" \
     "${HOME}/Library/Frameworks/PlayTools.framework"
 
+SYS_FW="${HOME}/Library/Frameworks/PlayTools.framework"
+if [[ -d "${SYS_FW}/Versions/A" ]]; then
+    require_akinterface_in_framework "${SYS_FW}/Versions/A" "~/Library/Frameworks/PlayTools.framework"
+else
+    require_akinterface_in_framework "${SYS_FW}" "~/Library/Frameworks/PlayTools.framework"
+fi
+
 printf "==> Done. Installed app: %s\n" "$INSTALL_APP_PATH"
+printf "==> Note: already-installed games still have the empty AKInterface.bundle.\n"
+printf "    Re-install PlayTools on each app (or reinstall the IPA) to pick up the fix.\n"
 printf "==> Launching PlayCover...\n"
 open "$INSTALL_APP_PATH"

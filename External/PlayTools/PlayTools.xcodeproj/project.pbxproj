@@ -624,6 +624,7 @@
 				AA7196D6287A447700623C15 /* Resources */,
 				6ED6ACAB28AAB30F0040D234 /* SwiftLint */,
 				6E84A14728D0F94E00BF7495 /* Embed Frameworks */,
+				A1B2C3D4E5F60718293A0101 /* Restore AKInterface */,
 			);
 			buildRules = (
 			);
@@ -715,6 +716,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "if [[ -z \"$FASTLANE\" ]]; then\n    export PATH=\"$PATH:/opt/homebrew/bin:/opt/local/bin\"\n    if which swiftlint > /dev/null; then\n        swiftlint\n    else\n        echo \"error: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\n        exit -1\n    fi\nfi\n";
+		};
+		A1B2C3D4E5F60718293A0101 /* Restore AKInterface */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Scripts/restore-akinterface.sh",
+			);
+			name = "Restore AKInterface";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(FULL_PRODUCT_NAME)/PlugIns/AKInterface.bundle/Contents/MacOS/AKInterface",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/Scripts/restore-akinterface.sh\"\n";
+			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
 
